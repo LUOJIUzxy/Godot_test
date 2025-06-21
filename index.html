@@ -93,6 +93,117 @@ body {
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
 
+		<!-- Inside your Godot HTML export template (e.g., index.html) -->
+		<script src="https://cdn.ethers.io/lib/ethers-5.7.esm.min.js" type="module"></script>
+		<script type="module">
+		    const SEPOLIA_CHAIN_ID = '0xaa36a7'; // Sepolia in hexadecimal
+
+		    if (typeof window.ethereum === 'undefined') {
+		        console.warn("MetaMask or other Web3 provider not detected.");
+		        // Consider displaying a user-friendly message in Godot via call_deferred
+		    }
+
+		    // Define a global function that Godot can call
+		    globalThis.connectWallet = async () => {
+		        if (typeof window.ethereum === 'undefined') {
+		            return Promise.reject(new Error("No Web3 provider found. Please install MetaMask."));
+		        }
+
+		        try {
+		            // 1. Request account access
+		            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+		            const account = accounts[0]; // Get the first connected account
+		            console.log("Connected Ethereum account:", account);
+
+		            // 2. Get current chain ID
+		            const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+		            console.log("Current Chain ID:", currentChainId);
+
+		            // 3. Check if connected to Sepolia
+		            if (currentChainId !== SEPOLIA_CHAIN_ID) {
+		                console.warn("Not connected to Sepolia. Attempting to switch network...");
+		                try {
+		                    // Request to switch to Sepolia
+		                    await window.ethereum.request({
+		                        method: 'wallet_switchEthereumChain',
+		                        params: [{ chainId: SEPOLIA_CHAIN_ID }],
+		                    });
+		                    console.log("Switched to Sepolia network successfully.");
+		                } catch (switchError) {
+		                    // This error means the user rejected the network switch or Sepolia is not added
+		                    if (switchError.code === 4902) { // 4902 means the chain has not been added to MetaMask
+		                        console.error("Sepolia not added to MetaMask. Trying to add it...");
+		                        try {
+		                            await window.ethereum.request({
+		                                method: 'wallet_addEthereumChain',
+		                                params: [{
+		                                    chainId: SEPOLIA_CHAIN_ID,
+		                                    chainName: 'Sepolia Test Network',
+		                                    rpcUrls: ['https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID'], // Replace with your Infura ID
+		                                    nativeCurrency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
+		                                    blockExplorerUrls: ['https://sepolia.etherscan.io'],
+		                                }],
+		                            });
+		                            // After adding, try switching again (optional, MetaMask usually switches automatically)
+		                            await window.ethereum.request({
+		                                method: 'wallet_switchEthereumChain',
+		                                params: [{ chainId: SEPOLIA_CHAIN_ID }],
+		                            });
+		                            console.log("Sepolia added and switched successfully.");
+		                        } catch (addError) {
+		                            console.error("Failed to add Sepolia network:", addError);
+		                            return Promise.reject(new Error("Failed to add or switch to Sepolia. Please add it manually."));
+		                        }
+		                    } else if (switchError.code === 4001) { // 4001 means user rejected the request
+		                        console.error("User rejected network switch to Sepolia.");
+		                        return Promise.reject(new Error("Network switch rejected by user. Please connect to Sepolia."));
+		                    } else {
+		                        console.error("Error switching network:", switchError);
+		                        return Promise.reject(new Error("Error switching to Sepolia network."));
+		                    }
+		                }
+		            }
+
+		            // If we reached here, we are on Sepolia (or the user chose not to switch)
+		            return Promise.resolve(account); // Resolve the promise with the account
+
+		        } catch (error) {
+		            console.error("Ethereum connection error:", error);
+		            // Handle user denial or other connection issues
+		            if (error.code === 4001) {
+		                return Promise.reject(new Error("User rejected wallet connection."));
+		            }
+		            return Promise.reject(error);
+		        }
+		    };
+
+		    // Optional: Listen for account or chain changes and communicate back to Godot
+		    if (window.ethereum) {
+		        window.ethereum.on('accountsChanged', (accounts) => {
+		            if (accounts.length > 0) {
+		                console.log("JS: Account changed to:", accounts[0]);
+		                // You could call a Godot function here if needed
+		                // Godot.call_deferred('on_js_account_changed', accounts[0]);
+		            } else {
+		                console.log("JS: Wallet disconnected.");
+		                // Godot.call_deferred('on_js_wallet_disconnected');
+		            }
+		        });
+
+		        window.ethereum.on('chainChanged', (chainId) => {
+		            console.log("JS: Chain changed to:", chainId);
+		            if (chainId !== SEPOLIA_CHAIN_ID) {
+		                console.warn("JS: Current chain is not Sepolia after change.");
+		                // You might trigger a warning in Godot
+		                // Godot.call_deferred('on_js_chain_changed', chainId);
+		            } else {
+		                console.log("JS: Successfully changed to Sepolia.");
+		                // Godot.call_deferred('on_js_chain_changed', chainId);
+		            }
+		        });
+		    }
+		</script>
+
 	</head>
 	<body>
 		<canvas id="canvas">
@@ -111,7 +222,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":31792,"index.wasm":52126319},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":32384,"index.wasm":52126319},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
