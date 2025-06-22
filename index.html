@@ -92,8 +92,7 @@ body {
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
-
-	<!-- Web3 Wallet Integration for Godot - Updated Version -->
+    <!-- Web3 Wallet Integration for Godot - Updated Version -->
 		<script src="https://cdn.ethers.io/lib/ethers-5.7.esm.min.js" type="module"></script>
 		<script type="module">
 			const SEPOLIA_CHAIN_ID = '0xaa36a7'; // Sepolia Chain ID in hexadecimal
@@ -358,9 +357,9 @@ body {
 				return null;
 			};
 
-			// Alternative direct connection method (no recursion risk)
-			globalThis.connectWalletDirect = async (callbackName) => {
-				console.log("🔗 Direct wallet connection started");
+			// Ultra-simple connection method to avoid Promise recursion
+			globalThis.connectWalletSimple = (callbackName) => {
+				console.log("🔗 Simple wallet connection started");
 				
 				if (!window[callbackName]) {
 					console.error("❌ Callback function not found:", callbackName);
@@ -378,44 +377,93 @@ body {
 					return;
 				}
 
-				try {
-					console.log("🔐 Requesting accounts...");
-					const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-					
-					if (accounts.length === 0) {
-						throw new Error("No accounts returned");
-					}
+				console.log("🔐 Requesting accounts...");
+				
+				// Use .then() instead of async/await to avoid potential recursion
+				window.ethereum.request({ method: 'eth_requestAccounts' })
+					.then((accounts) => {
+						console.log("✅ Accounts received:", accounts);
+						
+						if (!accounts || accounts.length === 0) {
+							throw new Error("No accounts returned");
+						}
 
-					const account = accounts[0];
-					console.log("✅ Account received:", account);
+						const account = accounts[0];
+						console.log("✅ Using account:", account);
 
-					// Get chain ID
-					const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-					console.log("🌐 Chain ID:", chainId);
+						// Get chain ID with simple then/catch
+						return window.ethereum.request({ method: 'eth_chainId' })
+							.then((chainId) => {
+								console.log("🌐 Chain ID received:", chainId);
+								
+								// Success - call callback immediately
+								window[callbackName](JSON.stringify({ 
+									success: true, 
+									account: account, 
+									chainId: chainId,
+									isSepoliaNetwork: chainId === SEPOLIA_CHAIN_ID,
+									error: null,
+									timestamp: Date.now()
+								}));
+							});
+					})
+					.catch((error) => {
+						console.error("❌ Simple connection error:", error);
+						
+						// Error - call callback immediately
+						window[callbackName](JSON.stringify({ 
+							success: false, 
+							account: null, 
+							error: error.message || error.toString(),
+							timestamp: Date.now()
+						}));
+					});
+			};
 
-					// Success callback
-					window[callbackName](JSON.stringify({ 
-						success: true, 
-						account: account, 
-						chainId: chainId,
-						isSepoliaNetwork: chainId === SEPOLIA_CHAIN_ID,
-						error: null,
-						timestamp: Date.now()
-					}));
-
-				} catch (error) {
-					console.error("❌ Direct connection error:", error);
-					window[callbackName](JSON.stringify({ 
-						success: false, 
-						account: null, 
-						error: error.message || error.toString(),
-						timestamp: Date.now()
-					}));
+			// Most basic version - one request at a time
+			globalThis.connectWalletBasic = (callbackName) => {
+				console.log("🔗 Basic wallet connection");
+				
+				if (!window[callbackName]) {
+					console.log("❌ No callback function");
+					return;
 				}
+
+				if (typeof window.ethereum === 'undefined') {
+					console.log("❌ No MetaMask");
+					setTimeout(() => {
+						window[callbackName]('{"success":false,"error":"No MetaMask"}');
+					}, 100);
+					return;
+				}
+
+				console.log("🔐 Making request...");
+				
+				// Single request with minimal error handling
+				window.ethereum.request({ method: 'eth_requestAccounts' })
+					.then(function(accounts) {
+						console.log("✅ Got accounts:", accounts);
+						if (accounts && accounts.length > 0) {
+							setTimeout(() => {
+								window[callbackName]('{"success":true,"account":"' + accounts[0] + '"}');
+							}, 100);
+						} else {
+							setTimeout(() => {
+								window[callbackName]('{"success":false,"error":"No accounts"}');
+							}, 100);
+						}
+					})
+					.catch(function(error) {
+						console.log("❌ Error:", error);
+						setTimeout(() => {
+							window[callbackName]('{"success":false,"error":"' + (error.message || 'Connection failed') + '"}');
+						}, 100);
+					});
 			};
 
 			console.log("🚀 Web3 Wallet Integration loaded successfully!");
 		</script>
+
 
 	</head>
 	<body>
@@ -435,7 +483,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":33040,"index.wasm":52126319},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":33056,"index.wasm":52126319},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
