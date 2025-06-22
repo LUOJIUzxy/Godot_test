@@ -105,6 +105,7 @@ body {
 
 			// Define a global function that Godot can call via JavaScriptBridge.eval()
 			globalThis.connectWallet = async () => {
+				console.log("connectWallet");
 				// Prevent re-entry if a connection attempt is already in progress
 				if (isConnecting) {
 					console.warn("Connection already in progress. Please wait.");
