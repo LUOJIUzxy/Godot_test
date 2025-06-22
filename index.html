@@ -92,7 +92,26 @@ body {
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
-    <!-- Web3 Wallet Integration for Godot - Updated Version -->
+
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<script src="index.js"></script>
+
+		<!-- Web3 Wallet Integration for Godot - Properly Positioned in Body -->
 		<script src="https://cdn.ethers.io/lib/ethers-5.7.esm.min.js" type="module"></script>
 		<script type="module">
 			const SEPOLIA_CHAIN_ID = '0xaa36a7'; // Sepolia Chain ID in hexadecimal
@@ -102,327 +121,9 @@ body {
 			// Flag to prevent multiple concurrent connection attempts
 			let isConnecting = false;
 
-			// Define the main wallet connection function
-			globalThis.connectWallet = async () => {
-				console.log("🔗 Starting wallet connection process...");
-				
-				// Prevent re-entry if a connection attempt is already in progress
-				if (isConnecting) {
-					console.warn("⚠️ Connection already in progress. Please wait.");
-					return Promise.reject(new Error("Connection already in progress."));
-				}
-
-				if (typeof window.ethereum === 'undefined') {
-					console.error("❌ MetaMask or other Web3 provider not detected.");
-					return Promise.reject(new Error("No Web3 provider found. Please install MetaMask."));
-				}
-
-				isConnecting = true;
-
-				try {
-					// 1. Request account access from the user's wallet
-					console.log("🔐 Requesting wallet access...");
-					const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-					const account = accounts[0];
-					console.log("✅ Wallet connected! Account:", account);
-
-					// 2. Get the current chain ID
-					let currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-					console.log("🌐 Current Chain ID:", currentChainId);
-
-					// 3. Check if connected to Sepolia. If not, attempt to switch.
-					if (currentChainId !== SEPOLIA_CHAIN_ID) {
-						console.log("🔄 Not on Sepolia. Attempting to switch network...");
-						try {
-							await window.ethereum.request({
-								method: 'wallet_switchEthereumChain',
-								params: [{ chainId: SEPOLIA_CHAIN_ID }],
-							});
-							console.log("✅ Successfully switched to Sepolia network.");
-							currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-						} catch (switchError) {
-							if (switchError.code === 4902) {
-								console.warn("📝 Sepolia not added to MetaMask. Attempting to add it...");
-								try {
-									await window.ethereum.request({
-										method: 'wallet_addEthereumChain',
-										params: [{
-											chainId: SEPOLIA_CHAIN_ID,
-											chainName: 'Sepolia Test Network',
-											rpcUrls: [SEPOLIA_RPC_URL],
-											nativeCurrency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
-											blockExplorerUrls: [SEPOLIA_EXPLORER_URL],
-										}],
-									});
-									console.log("✅ Sepolia added to MetaMask successfully.");
-									
-									// Verify the switch
-									currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-									if (currentChainId !== SEPOLIA_CHAIN_ID) {
-										await window.ethereum.request({
-											method: 'wallet_switchEthereumChain',
-											params: [{ chainId: SEPOLIA_CHAIN_ID }],
-										});
-										currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
-									}
-								} catch (addError) {
-									console.error("❌ Failed to add Sepolia network:", addError);
-									isConnecting = false;
-									return Promise.reject(new Error(`Failed to add Sepolia: ${addError.message || addError}`));
-								}
-							} else if (switchError.code === 4001) {
-								console.error("❌ User rejected network switch to Sepolia.");
-								isConnecting = false;
-								return Promise.reject(new Error("Network switch rejected by user. Please connect to Sepolia manually."));
-							} else {
-								console.error("❌ Unhandled error during network switch:", switchError);
-								isConnecting = false;
-								return Promise.reject(new Error(`Error switching network: ${switchError.message || switchError}`));
-							}
-						}
-					}
-
-					// Final verification
-					if (currentChainId !== SEPOLIA_CHAIN_ID) {
-						console.error("❌ Still not on Sepolia after connection attempts.");
-						isConnecting = false;
-						return Promise.reject(new Error("Failed to connect to Sepolia testnet. Please check your wallet."));
-					}
-
-					console.log("🎉 Successfully connected to Sepolia testnet with account:", account);
-					isConnecting = false;
-					return Promise.resolve(account);
-
-				} catch (error) {
-					console.error("❌ Ethereum connection error:", error);
-					isConnecting = false;
-					if (error.code === 4001) {
-						return Promise.reject(new Error("User rejected wallet connection."));
-					}
-					return Promise.reject(new Error(`Wallet connection failed: ${error.message || error}`));
-				}
-			};
-
-			// Polling approach: Store results for Godot to check
-			globalThis.connectWalletSync = async () => {
-				try {
-					const account = await globalThis.connectWallet();
-					globalThis.walletConnectionResult = {
-						success: true,
-						account: account,
-						error: null,
-						timestamp: Date.now()
-					};
-					console.log("📋 Wallet connection result stored for polling.");
-					return account;
-				} catch (error) {
-					globalThis.walletConnectionResult = {
-						success: false,
-						account: null,
-						error: error.message || error.toString(),
-						timestamp: Date.now()
-					};
-					console.error("📋 Wallet connection error stored for polling:", error);
-					throw error;
-				}
-			};
-
-			// Function for Godot to check connection result
-			globalThis.getWalletConnectionResult = () => {
-				return globalThis.walletConnectionResult || { 
-					success: false, 
-					account: null, 
-					error: "No connection attempt made",
-					timestamp: null
-				};
-			};
-
-			// Function to clear the connection result
-			globalThis.clearWalletConnectionResult = () => {
-				globalThis.walletConnectionResult = null;
-			};
-
-			// Simplified callback approach to avoid recursion
-			globalThis.connectWalletWithCallback = async (callbackName) => {
-				console.log("📞 Starting wallet connection with callback:", callbackName);
-				
-				// Check if callback function exists
-				if (!window[callbackName]) {
-					console.error("⚠️ Callback function not found:", callbackName);
-					return;
-				}
-
-				// Prevent recursion by checking if already connecting
-				if (isConnecting) {
-					console.warn("⚠️ Connection already in progress, calling callback with error");
-					window[callbackName](JSON.stringify({ 
-						success: false, 
-						account: null, 
-						error: "Connection already in progress",
-						timestamp: Date.now()
-					}));
-					return;
-				}
-
-				try {
-					const account = await globalThis.connectWallet();
-					console.log("✅ Callback: Wallet connected successfully");
-					window[callbackName](JSON.stringify({ 
-						success: true, 
-						account: account, 
-						error: null,
-						timestamp: Date.now()
-					}));
-				} catch (error) {
-					console.error("❌ Callback: Wallet connection failed:", error);
-					window[callbackName](JSON.stringify({ 
-						success: false, 
-						account: null, 
-						error: error.message || error.toString(),
-						timestamp: Date.now()
-					}));
-				}
-			};
-
-			// Get current wallet status (useful for checking if already connected)
-			globalThis.getWalletStatus = async () => {
-				if (typeof window.ethereum === 'undefined') {
-					return { connected: false, account: null, chainId: null, error: "No Web3 provider" };
-				}
-
-				try {
-					const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-					if (accounts.length === 0) {
-						return { connected: false, account: null, chainId: null, error: "No accounts connected" };
-					}
-
-					const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-					return { 
-						connected: true, 
-						account: accounts[0], 
-						chainId: chainId,
-						isSepoliaNetwork: chainId === SEPOLIA_CHAIN_ID,
-						error: null 
-					};
-				} catch (error) {
-					return { connected: false, account: null, chainId: null, error: error.message };
-				}
-			};
-
-			// Event listeners for wallet changes (temporarily disabled to prevent recursion)
-			// These will be re-enabled once the connection issue is resolved
-			/*
-			if (window.ethereum) {
-				window.ethereum.on('accountsChanged', (accounts) => {
-					if (accounts.length === 0) {
-						console.log("🔌 JS: Wallet disconnected (no accounts).");
-						globalThis.walletEventResult = {
-							type: 'accountsChanged',
-							connected: false,
-							account: null,
-							timestamp: Date.now()
-						};
-					} else {
-						console.log("👤 JS: Account changed to:", accounts[0]);
-						globalThis.walletEventResult = {
-							type: 'accountsChanged',
-							connected: true,
-							account: accounts[0],
-							timestamp: Date.now()
-						};
-					}
-				});
-
-				window.ethereum.on('chainChanged', (chainId) => {
-					console.log("🌐 JS: Chain changed to:", chainId);
-					globalThis.walletEventResult = {
-						type: 'chainChanged',
-						chainId: chainId,
-						isSepoliaNetwork: chainId === SEPOLIA_CHAIN_ID,
-						timestamp: Date.now()
-					};
-				});
-
-				// Function to get and clear wallet events
-				globalThis.getWalletEvent = () => {
-					const event = globalThis.walletEventResult || null;
-					globalThis.walletEventResult = null; // Clear after reading
-					return event;
-				};
-			}
-			*/
-
-			// Placeholder for wallet events (while listeners are disabled)
-			globalThis.getWalletEvent = () => {
-				return null;
-			};
-
-			// Ultra-simple connection method to avoid Promise recursion
-			globalThis.connectWalletSimple = (callbackName) => {
-				console.log("🔗 Simple wallet connection started");
-				
-				if (!window[callbackName]) {
-					console.error("❌ Callback function not found:", callbackName);
-					return;
-				}
-
-				if (typeof window.ethereum === 'undefined') {
-					console.error("❌ MetaMask not detected");
-					window[callbackName](JSON.stringify({ 
-						success: false, 
-						account: null, 
-						error: "No Web3 provider found. Please install MetaMask.",
-						timestamp: Date.now()
-					}));
-					return;
-				}
-
-				console.log("🔐 Requesting accounts...");
-				
-				// Use .then() instead of async/await to avoid potential recursion
-				window.ethereum.request({ method: 'eth_requestAccounts' })
-					.then((accounts) => {
-						console.log("✅ Accounts received:", accounts);
-						
-						if (!accounts || accounts.length === 0) {
-							throw new Error("No accounts returned");
-						}
-
-						const account = accounts[0];
-						console.log("✅ Using account:", account);
-
-						// Get chain ID with simple then/catch
-						return window.ethereum.request({ method: 'eth_chainId' })
-							.then((chainId) => {
-								console.log("🌐 Chain ID received:", chainId);
-								
-								// Success - call callback immediately
-								window[callbackName](JSON.stringify({ 
-									success: true, 
-									account: account, 
-									chainId: chainId,
-									isSepoliaNetwork: chainId === SEPOLIA_CHAIN_ID,
-									error: null,
-									timestamp: Date.now()
-								}));
-							});
-					})
-					.catch((error) => {
-						console.error("❌ Simple connection error:", error);
-						
-						// Error - call callback immediately
-						window[callbackName](JSON.stringify({ 
-							success: false, 
-							account: null, 
-							error: error.message || error.toString(),
-							timestamp: Date.now()
-						}));
-					});
-			};
-
-			// Most basic version - one request at a time
+			// Basic wallet connection that works well in the body
 			globalThis.connectWalletBasic = (callbackName) => {
-				console.log("🔗 Basic wallet connection");
+				console.log("🔗 Basic wallet connection (loaded in body)");
 				
 				if (!window[callbackName]) {
 					console.log("❌ No callback function");
@@ -461,27 +162,34 @@ body {
 					});
 			};
 
-			console.log("🚀 Web3 Wallet Integration loaded successfully!");
+			// Get current wallet status
+			globalThis.getWalletStatus = async () => {
+				if (typeof window.ethereum === 'undefined') {
+					return { connected: false, account: null, chainId: null, error: "No Web3 provider" };
+				}
+
+				try {
+					const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+					if (accounts.length === 0) {
+						return { connected: false, account: null, chainId: null, error: "No accounts connected" };
+					}
+
+					const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+					return { 
+						connected: true, 
+						account: accounts[0], 
+						chainId: chainId,
+						isSepoliaNetwork: chainId === SEPOLIA_CHAIN_ID,
+						error: null 
+					};
+				} catch (error) {
+					return { connected: false, account: null, chainId: null, error: error.message };
+				}
+			};
+
+			console.log("🚀 Web3 Wallet Integration loaded successfully in body!");
 		</script>
 
-
-	</head>
-	<body>
-		<canvas id="canvas">
-			Your browser does not support the canvas tag.
-		</canvas>
-
-		<noscript>
-			Your browser does not support JavaScript.
-		</noscript>
-
-		<div id="status">
-			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
-			<progress id="status-progress"></progress>
-			<div id="status-notice"></div>
-		</div>
-
-		<script src="index.js"></script>
 		<script>
 const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":33056,"index.wasm":52126319},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
