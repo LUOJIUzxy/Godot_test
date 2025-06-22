@@ -97,7 +97,8 @@ body {
 		<script src="https://cdn.ethers.io/lib/ethers-5.7.esm.min.js" type="module"></script>
 		<script type="module">
 		    const SEPOLIA_CHAIN_ID = '0xaa36a7'; // Sepolia Chain ID in hexadecimal
-			const SEPOLIA_RPC_URL = 'https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID'; // <<< IMPORTANT: Replace with your Infura/Alchemy Project ID
+			const SEPOLIA_RPC_URL = 'https://eth-sepolia.api.onfinality.io/public'
+			//const SEPOLIA_RPC_URL = 'https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID'; // <<< IMPORTANT: Replace with your Infura/Alchemy Project ID
 			const SEPOLIA_EXPLORER_URL = 'https://sepolia.etherscan.io';
 
 			// Flag to prevent multiple concurrent connection attempts
@@ -105,7 +106,7 @@ body {
 
 			// Define a global function that Godot can call via JavaScriptBridge.eval()
 			globalThis.connectWallet = async () => {
-				console.log("connectWallet");
+				//console.log("connectWallet");
 				// Prevent re-entry if a connection attempt is already in progress
 				if (isConnecting) {
 					console.warn("Connection already in progress. Please wait.");
