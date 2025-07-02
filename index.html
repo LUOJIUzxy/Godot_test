@@ -121,7 +121,7 @@ body {
 			// Flag to prevent multiple concurrent connection attempts
 			let isConnecting = false;
 
-			// Basic wallet connection that works well in the body
+			// Basic wallet connection which works well in the body
 			globalThis.connectWalletBasic = (callbackName) => {
 				console.log("🔗 Basic wallet connection (loaded in body)");
 				
@@ -130,6 +130,7 @@ body {
 					return;
 				}
 
+				// Check if MetaMask is installed
 				if (typeof window.ethereum === 'undefined') {
 					console.log("❌ No MetaMask");
 					setTimeout(() => {
@@ -138,7 +139,7 @@ body {
 					return;
 				}
 
-				console.log("🔐 Making request...");
+				console.log("Making request...");
 				
 				// Single request with minimal error handling
 				window.ethereum.request({ method: 'eth_requestAccounts' })
@@ -159,6 +160,88 @@ body {
 						setTimeout(() => {
 							window[callbackName]('{"success":false,"error":"' + (error.message || 'Connection failed') + '"}');
 						}, 100);
+					});
+			};
+
+			// Switch to Sepolia testnet
+			globalThis.switchToSepolia = (callbackName) => {
+				console.log("🔄 Switching to Sepolia testnet");
+				
+				if (!window[callbackName]) {
+					console.log("❌ No callback function");
+					return;
+				}
+
+				// Check if MetaMask is installed
+				if (typeof window.ethereum === 'undefined') {
+					console.log("❌ No MetaMask");
+					setTimeout(() => {
+						window[callbackName]('{"success":false,"error":"No MetaMask"}');
+					}, 100);
+					return;
+				}
+
+				// First check current chain
+				window.ethereum.request({ method: 'eth_chainId' })
+					.then(function(chainId) {
+						console.log("Current chain ID:", chainId);
+						
+						if (chainId === SEPOLIA_CHAIN_ID) {
+							console.log("✅ Already on Sepolia");
+							setTimeout(() => {
+								window[callbackName]('{"success":true,"message":"Already on Sepolia","chainId":"' + chainId + '"}');
+							}, 100);
+							return;
+						}
+
+						// Try to switch to Sepolia
+						console.log("Switching to Sepolia...");
+						return window.ethereum.request({
+							method: 'wallet_switchEthereumChain',
+							params: [{ chainId: SEPOLIA_CHAIN_ID }],
+						});
+					})
+					.then(function() {
+						console.log("✅ Switched to Sepolia successfully");
+						setTimeout(() => {
+							window[callbackName]('{"success":true,"message":"Switched to Sepolia","chainId":"' + SEPOLIA_CHAIN_ID + '"}');
+						}, 100);
+					})
+					.catch(function(error) {
+						console.log("❌ Switch failed:", error);
+						
+						// If the chain doesn't exist in MetaMask, try to add it
+						if (error.code === 4902) {
+							console.log("Chain not found, trying to add Sepolia...");
+							return window.ethereum.request({
+								method: 'wallet_addEthereumChain',
+								params: [{
+									chainId: SEPOLIA_CHAIN_ID,
+									chainName: 'Sepolia Test Network',
+									nativeCurrency: {
+										name: 'Sepolia ETH',
+										symbol: 'SepoliaETH',
+										decimals: 18
+									},
+									rpcUrls: [SEPOLIA_RPC_URL],
+									blockExplorerUrls: [SEPOLIA_EXPLORER_URL]
+								}]
+							}).then(function() {
+								console.log("✅ Added and switched to Sepolia");
+								setTimeout(() => {
+									window[callbackName]('{"success":true,"message":"Added and switched to Sepolia","chainId":"' + SEPOLIA_CHAIN_ID + '"}');
+								}, 100);
+							}).catch(function(addError) {
+								console.log("❌ Failed to add Sepolia:", addError);
+								setTimeout(() => {
+									window[callbackName]('{"success":false,"error":"Failed to add Sepolia: ' + (addError.message || 'Unknown error') + '"}');
+								}, 100);
+							});
+						} else {
+							setTimeout(() => {
+								window[callbackName]('{"success":false,"error":"Failed to switch: ' + (error.message || 'Unknown error') + '"}');
+							}, 100);
+						}
 					});
 			};
 
