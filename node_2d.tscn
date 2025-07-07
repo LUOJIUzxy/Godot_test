@@ -1,0 +1,93 @@
+[gd_scene load_steps=2 format=3 uid="uid://se6xgo1kslgp"]
+
+[sub_resource type="GDScript" id="GDScript_7dm0k"]
+script/source = "class_name Try
+extends CanvasLayer
+signal signal1(number: int)
+
+@onready var button:Button = $Control/Button
+var connection_attempted: bool = false
+#var callback_timer: Timer
+@onready var web3_manager = Web3Manager.new()
+
+func _ready() -> void:
+	button.pressed.connect(_on_Button_press)
+	signal1.connect(_print_signal)
+	
+	#callback_timer = Timer.new()
+	#callback_timer.wait_time = 0.1 # check every 100ms
+	#callback_timer.timeout.connect(_check_wallet_callback)
+	#add_child(callback_timer)
+	
+	
+func _on_Button_press() -> void:
+	print('Attempting to connect to Ethereum wallet and check for Sepolia testnet...')
+	signal1.emit(2)
+	
+	if connection_attempted:
+		print(\"Connection already attempted. Please refresh the page to try again.\")
+		return
+		
+	connection_attempted = true
+	
+	if OS.has_feature(\"web\"):
+		web3_manager.connect_wallet()
+		
+	else:
+		print(\"This Ethereum wallet connection feature is only available in HTML5 export with Javascript bridging\")
+		
+func _print_signal(number: int) -> void:
+	print(number)
+	
+func check_wallet_result():
+	if not OS.has_feature(\"web\"):
+		return
+		
+	var status = JavaScriptBridge.eval(\"window.wallet_status\")
+	print(\"Wallet status: \", status)
+	
+	if status == \"connected\":
+		var account = JavaScriptBridge.eval(\"window.wallet_account\")
+		on_wallet_connected(str(account))
+	elif status == \"error\":
+		var error = JavaScriptBridge.eval(\"window.wallet_error\")
+		on_wallet_error(str(error))
+	else:
+		print(\"Still connecting... checking again in 1 second\")
+		await get_tree().create_timer(1.0).timeout
+		check_wallet_result()
+		
+		
+func on_wallet_connected(account_address: String) -> void:
+	print(\"wallet connected! Account: \", account_address)
+	
+func on_wallet_error(error_message: String) -> void:
+	print(\"Wallet connection error: \", error_message)
+	
+		
+		
+		
+	
+	
+"
+
+[node name="Canvas" type="CanvasLayer"]
+script = SubResource("GDScript_7dm0k")
+
+[node name="Control" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Button" type="Button" parent="Control"]
+layout_mode = 0
+offset_left = 333.0
+offset_top = 338.0
+offset_right = 882.0
+offset_bottom = 532.0
+theme_override_font_sizes/font_size = 50
+text = "Menu button"
+metadata/_edit_use_anchors_ = true
